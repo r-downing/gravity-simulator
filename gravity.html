@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>
+<script type="text/javascript">
+function cc(){
+	document.getElementById("mysvg").style.fill="red";
+}
+
+$( document ).ready( function(){
+// Find your root SVG element
+var svg = document.querySelector('svg');
+
+var drawnCircle;
+var drawing = false, dragging = false, hp;
+var lining = false;
+var draggedCircle;
+
+var speedLine;
+
+// Create an SVGPoint for future math
+var pt = svg.createSVGPoint();
+
+// Get point in global SVG space
+function cursorPoint(evt){
+  pt.x = evt.clientX; pt.y = evt.clientY;
+  return pt.matrixTransform(svg.getScreenCTM().inverse());
+}
+
+svg.addEventListener('dblclick',function(evt){
+	  hp = cursorPoint(evt);
+	$('.drawn').each(function(){
+		if(Math.hypot(($(this).attr('cx')-hp.x),($(this).attr('cy')-hp.y))<$(this).attr('r')) {
+			$(this).remove();
+		}
+	});
+},false);
+
+svg.addEventListener('mousedown',function(evt){
+  var loc = cursorPoint(evt);
+  	if(!lining) drawing=true;
+	hp = loc;
+	$('.draggable').each(function(){
+		if(Math.hypot(($(this).attr('cx')-hp.x),($(this).attr('cy')-hp.y))<$(this).attr('r')) {
+			dragging=true;
+			drawing=false;
+			draggedCircle=$(this);
+		}
+	});
+	
+	if(drawing){
+		drawnCircle = $(document.createElementNS('http://www.w3.org/2000/svg', "circle"))
+		.attr('cx',loc.x)
+		.attr('cy',loc.y)
+		.attr('vx',0)
+		.attr('vy',0)
+		.attr('r',3)
+		.attr('fill','blue')
+		.appendTo($('#mydrawing'));
+	}
+	
+	if(lining){
+			drawnCircle.attr('vx', parseFloat(drawnCircle.attr('cx'))-loc.x);
+			drawnCircle.attr('vy', parseFloat(drawnCircle.attr('cy'))-loc.y);
+			drawnCircle.addClass('drawn');
+			lining=false;
+			speedLine.remove();
+	}
+  
+},false);
+
+svg.addEventListener('mousemove',function(evt){
+  var loc = cursorPoint(evt);
+  if(drawing){
+	drawnCircle.attr('r',Math.hypot((loc.x-hp.x),(loc.y-hp.y))/2)
+		.attr('cx',(loc.x+hp.x)/2)
+		.attr('cy',(loc.y+hp.y)/2);
+  }
+  
+  if(dragging) {
+	draggedCircle.attr('cx',loc.x).attr('cy',loc.y);
+  }  
+  if(lining) {
+	speedLine.attr('x2',loc.x).attr('y2',loc.y);
+  }
+  
+},false);
+
+svg.addEventListener('mouseup',function(evt){
+	var loc = cursorPoint(evt);
+	
+
+	if(drawing && drawnCircle.attr('r')<3){
+		drawnCircle.remove();
+		drawing=false;
+		lining=false;
+	} else if(drawing){
+		lining = true;
+		drawing = false;
+		speedLine = $(document.createElementNS('http://www.w3.org/2000/svg', "line"))
+			.attr('x1',drawnCircle.attr('cx'))
+			.attr('y1',drawnCircle.attr('cy'))
+			.attr('stroke','red')
+			.attr('stroke-width',2)
+			.appendTo(svg);
+	} 
+
+  
+},false);
+
+var dx, dy, movementTimer;
+
+$("#runbutton").click(function(){
+	movementTimer = setInterval(function(){
+	
+		runBug1();
+	
+		
+	}, 25);
+});
+
+function RX() {
+	return parseFloat($('#robot').attr('cx'));
+}
+function RY() {
+	return parseFloat($('#robot').attr('cy'));
+}
+function GX() {
+	return parseFloat($('#goal').attr('cx'));
+}
+function GY() {
+	return parseFloat($('#goal').attr('cy'));
+}
+function RR() {
+	return parseFloat($('#robot').attr('r'));
+}
+
+function collision(){
+	var p = false;
+	var md=1e6;
+	$('.drawn').each(function(){
+		var d = Math.hypot((parseFloat($(this).attr('cx'))-RX()),(parseFloat($(this).attr('cy'))-RY())) - (parseFloat($(this).attr('r'))+RR());
+		if (d<md) {
+			md = d;
+			if(d<0){
+				p=[];
+				var ang = Math.atan2((parseFloat($(this).attr('cy'))-RY()), (parseFloat($(this).attr('cx'))-RX()));
+				p.x = RX() + RR()*Math.cos(ang);
+				p.y = RY() + RR()*Math.sin(ang);
+			}
+		}
+	});
+	console.log(p);
+	return p;
+}
+
+function runBug1(){
+
+	/*$('.drawn').each(function(){
+		$('.drawn').each(function(){});
+		$(this).attr('vx',$(this).attr('vx')+
+	});*/
+	
+	$('.drawn').each(function(){
+		if($(this).attr('r')==0) {
+			console.log("remove");
+			$(this).remove();
+		}
+	});
+	var planets = $('.drawn');
+	var largestPlanet, largestR=0;
+	for(i=0;i<planets.length;i++){
+		var r1 = parseFloat($(planets[i]).attr('r'));
+		if(r1>largestR) {
+			largestR = r1;
+			largestPlanet = planets[i];
+		}
+	}
+	for(i=0;i<planets.length;i++){
+		for(j=0;j<planets.length;j++){
+			if(j!=i){
+				var m1 = r1*r1;
+				var r2 = parseFloat($(planets[j]).attr('r'));
+				var m2 = r2*r2;
+				if(m1>0 && m2>0){
+					var vx = parseFloat($(planets[i]).attr('vx'));
+					var vy = parseFloat($(planets[i]).attr('vy'));
+					
+					var dx = parseFloat($(planets[i]).attr('cx'))-parseFloat($(planets[j]).attr('cx'));
+					var dy = parseFloat($(planets[i]).attr('cy'))-parseFloat($(planets[j]).attr('cy'));
+					var d = Math.hypot(dx,dy);
+					var F = m1*m2/d/d;
+					var ax = F/m1 * dx / d;
+					var ay = F/m1 * dy / d;
+				
+					if(d<r1) {
+					
+						var vx2 = parseFloat($(planets[j]).attr('vx'));
+						var vy2 = parseFloat($(planets[j]).attr('vy'));
+						$(planets[i]).attr('vx',(m1*vx + m2*vx2)/(m1 + m2));
+						$(planets[i]).attr('vy',(m1*vy + m2*vy2)/(m1 + m2));
+						$(planets[i]).attr('r',Math.sqrt(m1+m2));
+						$(planets[j]).attr('r',0);
+					} else {
+					
+						$(planets[i]).attr('vx', vx - ax);
+						$(planets[i]).attr('vy', vy - ay);
+						
+					}
+				}
+				
+
+				
+				var rxji = parseFloat($(planets[i]).attr('cx'))-parseFloat($(planets[j]).attr('cx'));
+				var ryji = parseFloat($(planets[i]).attr('cy'))-parseFloat($(planets[j]).attr('cy'));
+				var rxy = Math.hypot(rxji,ryji);
+				var F = m1*m2/rxy/rxy;
+				var Fx = m1*m2/rxji/rxji;
+				var Fy = m1*m2/ryji/ryji;
+				if(rxy> r1){
+					$(planets[i]).attr('vx', parseFloat($(planets[i]).attr('vx')) + -F/m1*rxji/rxy);
+					$(planets[j]).attr('vx', parseFloat($(planets[j]).attr('vx')) + F/m2*rxji/rxy);			
+					$(planets[i]).attr('vy', parseFloat($(planets[i]).attr('vy')) + -F/m1*ryji/rxy);
+					$(planets[j]).attr('vy', parseFloat($(planets[j]).attr('vy')) + F/m2*ryji/rxy);
+				} else {
+					
+				}
+				
+			
+			}
+			//$(planets[j]).attr('vx', parseFloat($(planets[j]).attr('vx')) + Fx/m2*Math.abs(rx)/rx);
+			//console.log($(planets[j]).attr('cx'));
+		}
+		//console.log(planets[i]);
+	}
+	$('.tempLine').remove();
+	
+
+	$('.drawn').each(function(){
+		$(document.createElementNS('http://www.w3.org/2000/svg', "line"))
+			.attr('x1',$(this).attr('cx'))
+			.attr('x2',parseFloat($(this).attr('cx'))-parseFloat($(this).attr('vx')))
+			.attr('y1',$(this).attr('cy'))
+			.attr('y2',parseFloat($(this).attr('cy'))-parseFloat($(this).attr('vy')))
+			.addClass('tempLine')
+			.attr('stroke','red')
+			.attr('stroke-width',1)
+			.appendTo(svg);
+		
+		$(this).attr('cx',parseFloat($(this).attr('cx'))+parseFloat($(this).attr('vx')/100));
+		$(this).attr('cy',parseFloat($(this).attr('cy'))+parseFloat($(this).attr('vy')/100));
+		
+		
+	});
+	
+	
+	var svgCenter = {x:parseFloat($(svg).attr('width')/2),y:parseFloat($(svg).attr('height'))/2};
+	console.log($(largestPlanet).attr('cx'));
+	console.log(svgCenter);
+	var planetOffSet = {x:parseFloat($(largestPlanet).attr('cx'))-svgCenter.x,y:parseFloat($(largestPlanet).attr('cy'))-svgCenter.y};
+	console.log(planetOffSet);
+	
+	$('.drawn').each(function(){
+		$(this).attr('cx', parseFloat($(this).attr('cx')) - planetOffSet.x);
+		$(this).attr('cy', parseFloat($(this).attr('cy')) - planetOffSet.y);
+	});
+	
+	
+}
+
+});
+
+</script>
+</head>
+
+<body>
+<a id="runbutton">run</a>
+
+<svg id="mydrawing" width="1200" height="800" style="border:1px solid black">
+
+</svg>
+
+</body>
+</html>
